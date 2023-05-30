@@ -8,38 +8,83 @@ import time
 import asyncio, asyncvnc
 
 
+from OpenSSL import crypto, SSL
+from sshfs import SSHFileSystem
+
 virt_name="RD-"
+
+def cert_gen(
+    emailAddress="emailAddress",
+    commonName="commonName",
+    countryName="NT",
+    localityName="localityName",
+    stateOrProvinceName="stateOrProvinceName",
+    organizationName="organizationName",
+    organizationUnitName="organizationUnitName",
+    serialNumber=0,
+    validityStartInSeconds=0,
+    validityEndInSeconds=10*365*24*60*60,
+    KEY_FILE = "private.key",
+    CERT_FILE="selfsigned.crt"):
+    #can look at generated file using openssl:
+    #openssl x509 -inform pem -in selfsigned.crt -noout -text
+    # create a key pair
+    k = crypto.PKey()
+    k.generate_key(crypto.TYPE_RSA, 4096)
+    # create a self-signed cert
+    cert = crypto.X509()
+    cert.get_subject().C = countryName
+    cert.get_subject().ST = stateOrProvinceName
+    cert.get_subject().L = localityName
+    cert.get_subject().O = organizationName
+    cert.get_subject().OU = organizationUnitName
+    cert.get_subject().CN = commonName
+    cert.get_subject().emailAddress = emailAddress
+    cert.set_serial_number(serialNumber)
+    cert.gmtime_adj_notBefore(0)
+    cert.gmtime_adj_notAfter(validityEndInSeconds)
+    cert.set_issuer(cert.get_subject())
+    cert.set_pubkey(k)
+    cert.sign(k, 'sha512')
+
+    list = ["",""]
+    list[0] = crypto.dump_certificate(crypto.FILETYPE_PEM, cert).decode("utf-8")
+    list[1] = crypto.dump_privatekey(crypto.FILETYPE_PEM, k).decode("utf-8")
+    return list
 
 def id_generator():
     return ''.join(random.choice("0123456789ABCDEF") for _ in range(8))
 
-def key_exchange(username,key):
-    file_name = "./virts/"+username+"/home/"+username+"@lefor.lan/.config/sunshine/sunshine_state.json"
+def key_exchange(username,key,fs):
+
+    fs.mkdir('./.config/sunshine/credentials/')
+    fs.mkdir('./.config/autostart')
     found_this_key = False
     try:
-        f = open(file_name,"r")
-        lines = f.readlines()
-        f.close()
+        lines = []
+        #details = fs.info('./.config/sunshine/sunshine_state.json')
+        with fs.open('./.config/sunshine/sunshine_state.json') as stream:
+            lines.append(stream.read().decode("utf-8") )
         str_a = ''.join(lines) 
+
         arr = json.loads(str_a)
-        print("###########################################25")
-        print(arr)
-        print("###########################################27")
+        #print(arr)
     except:
-        print("###########################################29")
-    
+        print("###########################################30")
+
+
     try:
-        print("##### 32 ##### key found &&&&&&&&&&&&&&&&")
+        #print("##### 34 ##### key found &&&&&&&&&&&&&&&&")
         for i in arr["root"]["devices"][0]["certs"]:#засовываем сетефикат клиента
             if str(i).replace("\n","\\n") == key:
                 found_this_key = True
-                print("##### 36 ##### key found ###################")
-        print("##### 38 ##### key found ??????????????????????")
+                #print("##### 36 ##### key found ###################")
+        #print("##### 38 ##### key found ??????????????????????")
     except:
-        print(35)
+        print(81)
 
     if found_this_key != True:
-        print("########################40########################################")
+        print("########################46########################################")
         #arr["root"]["devices"][0]["certs"].append(key)
         #print("key added")
         arr = '''{
@@ -59,33 +104,48 @@ def key_exchange(username,key):
         }
         }'''
         arr = json.loads(arr)
-    
-        os.system("mkdir ./virts/"+username+"/home/"+username+"@lefor.lan/.config/sunshine/")
+
+        fs.mkdir('.config/sunshine/')
         arr["root"]["uniqueid"] = id_generator()
-    #print(arr)
+    print(107)
+    
     json_string = json.dumps(arr)
-    print("###########################60##################################"+json_string+"###############################################################")
+    #print("###########################60##################################"+json_string+"###############################################################")
 
     #file_name = "./virts/"+username+"/home/"+username+"/.config/sunshine/sunshine_state.json"
-    with open(file_name, "w") as file:
-        file.write(json_string)
+    with fs.open('./.config/sunshine/sunshine_state.json', 'wb') as stream:
+        stream.write(json_string)
     
-    file_name = "./virts/"+username+"/home/"+username+"@lefor.lan/.config/sunshine/credentials/cacert.pem"#читаем сертефикат
-    f = open(file_name,"r")
-    lines = f.readlines()
-    f.close()
+    print(116)
+    lines = []
     cert = ""
-    for i in lines:
-        cert += i
-
-    return [arr["root"]["uniqueid"],cert]
-
+    #details = fs.info('./.config/sunshine/sunshine_state.json')
+    try:
+        with fs.open('./.config/sunshine/credentials/cacert.pem') as stream:
+            lines.append(stream.read().decode("utf-8") )
+        for i in lines:
+            cert += i
+    except:
+        list = cert_gen()
+        cert = list[0]
+        with fs.open('./.config/sunshine/credentials/cacert.pem', 'wb') as stream:
+            stream.write(list[0])
+        with fs.open('./.config/sunshine/credentials/cakey.pem', 'wb') as stream:
+            stream.write(list[1])
+        print("")
+    with fs.open('./.config/autostart/sun.desktop', 'wb') as stream:
+            stream.write('''[Desktop Entry]
+            Type=Application
+            Name=Sunshine
+            Exec=/bin/sunshine''')
+    
+    return [arr["root"]["uniqueid"],cert,True]
 
 
 async def run_client(login,passord):
     sc=os.popen("sudo virsh vncdisplay "+virt_name+""+login).read().partition(':')[2]
     sc = int(sc)+5900
-    print(sc)
+    #print(sc)
 
     async with asyncvnc.connect('127.0.0.1',sc) as client:
         time.sleep(0.5)
@@ -101,14 +161,13 @@ def preparing_(user_name,cert_base64,password):
     
     q = os.popen("sudo virsh list --all | grep "+virt_name+"" + user_name).read()
     if(q == ""):
-        print("виртуалки нету")
+        #print("виртуалки нету")
         virt_running[user_name] = "clone"
-        print("clone")
+        #print("clone")
         os.system("sudo virt-clone --original "+virt_name+"clear --name "+virt_name+""+user_name+" --file /var/lib/libvirt/images/"+virt_name+""+user_name+".qcow2")
         #print("sudo virt-clone --original fedora-clear --name fedora-"+user_name+" --file /var/lib/libvirt/images/fedora-"+user_name+".qcow2")
-        print("готово")
-    else:
-        print("виртуалка есть")
+        #print("готово")
+
     
 
     q = os.popen("sudo virsh domifaddr "+virt_name+""+user_name+" | grep ipv4 | cut -c47-70 | rev  | cut -c4-19 | rev").read().replace("\n","")
@@ -123,32 +182,47 @@ def preparing_(user_name,cert_base64,password):
     
     virt_running[user_name] = "setup"
     
-    print("setup")
-    print("ip="+q)
-    print("mkdir -p ./virts/"+user_name+"; sudo umount ./virts/"+user_name+"; sudo sshfs -o StrictHostKeyChecking=no -o allow_other,default_permissions root@"+q+":/ ./virts/"+user_name+" -o IdentityFile=/home/lefor/.ssh/id_rsa")
-    os.system("mkdir -p ./virts/"+user_name+"; sudo umount ./virts/"+user_name+"; sudo sshfs -o StrictHostKeyChecking=no  -o allow_other,default_permissions root@"+q+":/ ./virts/"+user_name+" -o IdentityFile=/home/lefor/.ssh/id_rsa")
+    #print("setup")
+    #print("ip="+q)
     
+    #######################################################################
+    #######################################################################
+    #######################################################################
+    #######################################################################
+    #######################################################################
     
+    #comand = "bash -c 'mkdir -p ./virts/"+user_name+"; umount ./virts/"+user_name+"; sshfs -o StrictHostKeyChecking=no  -o allow_other,default_permissions root@"+q+":/ ./virts/"+user_name+" -o IdentityFile=/home/lefor/.ssh/id_rsa'"
+    #print(comand)
+    #os.system(comand)
+    fs = SSHFileSystem(
+        q,
+        username=user_name,
+        password=password
+    )   
     b1 = cert_base64.encode("UTF-8")
     d = base64.b64decode(b1)
     cert = d.decode("UTF-8")
-    print("############################132############################")
-    w = key_exchange(user_name,cert)
+    
+    w = key_exchange(user_name,cert,fs)
+    print(w)
+
     arr = [w[0],q,w[1],True]
-    print(arr)
+    #print(arr)
     data = json.dumps(arr)
     b1 = data.encode("UTF-8")
     d = base64.b64encode(b1)
     data_base64 = d.decode("UTF-8")
     
     #virt_running[user_name] = os.popen("ls ./virts/"+user_name+"/").read()
+    time.sleep(5)
+    
     asyncio.run(run_client(user_name,password))
     
     
     
     #os.system("ssh -o IdentityFile=/home/lefor/.ssh/id_rsa -o StrictHostKeyChecking=no root@"+q+"  su "+user_name+" -c sunshine &")
-    print("ssh -o IdentityFile=/home/lefor/.ssh/id_rsa -o StrictHostKeyChecking=no root@"+q+"  su "+user_name+" -c sunshine &")
-    time.sleep(10)
+    #print("ssh -o IdentityFile=/home/lefor/.ssh/id_rsa -o StrictHostKeyChecking=no root@"+q+"  su "+user_name+" -c sunshine &")
+    time.sleep(5)
 
     virt_running[user_name] = data_base64
 
