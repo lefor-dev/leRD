@@ -15,13 +15,14 @@ IP_ = "127.0.0.1"
 lines = []
 file_name = ""
 def connect(login,password):
-
-    file_name = "/home/"+login+"/.config/Moonlight Game Streaming Project/Moonlight.conf"
+    q = os.popen("whoami").read().replace("\n","")
+    file_name = "/home/"+q+"/.config/Moonlight Game Streaming Project/Moonlight.conf"
+    #print(file_name)
     f = open(file_name,"r")
     lines = f.readlines()
     #old_data = f.read()
     f.close()
-    print(lines)
+    #print(lines)
     for i,y in enumerate(lines):
         if y[0:11] == "certificate":
             cert = y[24:-3]
@@ -54,11 +55,11 @@ def connect(login,password):
     b = cert.encode("UTF-8")
     e = base64.b64encode(b)
     cert_base64 = e.decode("UTF-8")
-
+    #print(cert_base64)
     response = requests.get('http://'+IP_+':5000/key_exchange?user_name='+login+'&password='+password+'&cert='+cert_base64).text
-    print("###############################3")
-    print('http://'+IP_+':5000/key_exchange?user_name='+login+'&password='+password+'&cert='+cert_base64)
-    print("###############################3")
+    #print("###############################3")
+    #print('http://'+IP_+':5000/key_exchange?user_name='+login+'&password='+password+'&cert='+cert_base64)
+    #print("###############################3")
 
     #response = "qwe"
     return (response == "ok")
@@ -70,22 +71,22 @@ def running_(user,ip,self):
     while q:
         time.sleep(2)
         response = requests.get('http://'+IP_+':5000/runing?user_name='+user).text
-        print("######################################\n response\n################################# \n\n"+response+"############################\n################################")
+        #print("######################################\n response\n################################# \n\n"+response+"############################\n################################")
         try:
             b = response.encode("UTF-8")
             e = base64.b64decode(b)
             response = e.decode("UTF-8")
             arr = json.loads(response)
-            print(arr)
             if arr[3] == False:
                 return False
-
-            file_name = "/home/"+user+"/.config/Moonlight Game Streaming Project/Moonlight.conf"
+            q = os.popen("whoami").read().replace("\n","")
+            file_name = "/home/"+q+"/.config/Moonlight Game Streaming Project/Moonlight.conf"
+            #file_name = "/home/"+user+"/.config/Moonlight Game Streaming Project/Moonlight.conf"
             f = open(file_name,"r")
             lines = f.readlines()
             #old_data = f.read()
             f.close()
-
+            print("##############\n"+arr[2].replace("\n","\\n")+"\n##############")
             lines.append("1\\localaddress="+arr[1])
             lines.append("\n1\\localport=47989\n")
             lines.append("1\\srvcert=@ByteArray("+arr[2].replace("\n","\\n")+")")
@@ -97,8 +98,8 @@ def running_(user,ip,self):
                     file.write(line)
             
             q=False
-            
-            os.system("./Moonlight-4.3.1-x86_64.AppImage stream "+arr[1]+" Desktop &")
+            print("run Moonlight")
+            os.system("bash -c './Moonlight-4.3.1-x86_64.AppImage stream "+arr[1]+" Desktop &' | grep 1243123123")
         except:
             #notification.notify(title='RemoteRD', message=response)
             self.setWindowTitle(response)

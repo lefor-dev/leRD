@@ -14,7 +14,7 @@ def id_generator():
     return ''.join(random.choice("0123456789ABCDEF") for _ in range(8))
 
 def key_exchange(username,key):
-    file_name = "./virts/"+username+"/home/"+username+"/.config/sunshine/sunshine_state.json"
+    file_name = "./virts/"+username+"/home/"+username+"@lefor.lan/.config/sunshine/sunshine_state.json"
     found_this_key = False
     try:
         f = open(file_name,"r")
@@ -60,7 +60,7 @@ def key_exchange(username,key):
         }'''
         arr = json.loads(arr)
     
-        os.system("mkdir ./virts/"+username+"/home/"+username+"/.config/sunshine/")
+        os.system("mkdir ./virts/"+username+"/home/"+username+"@lefor.lan/.config/sunshine/")
         arr["root"]["uniqueid"] = id_generator()
     #print(arr)
     json_string = json.dumps(arr)
@@ -70,7 +70,7 @@ def key_exchange(username,key):
     with open(file_name, "w") as file:
         file.write(json_string)
     
-    file_name = "./virts/"+username+"/home/"+username+"/.config/sunshine/credentials/cacert.pem"#читаем сертефикат
+    file_name = "./virts/"+username+"/home/"+username+"@lefor.lan/.config/sunshine/credentials/cacert.pem"#читаем сертефикат
     f = open(file_name,"r")
     lines = f.readlines()
     f.close()
@@ -128,8 +128,6 @@ def preparing_(user_name,cert_base64,password):
     print("mkdir -p ./virts/"+user_name+"; sudo umount ./virts/"+user_name+"; sudo sshfs -o StrictHostKeyChecking=no -o allow_other,default_permissions root@"+q+":/ ./virts/"+user_name+" -o IdentityFile=/home/lefor/.ssh/id_rsa")
     os.system("mkdir -p ./virts/"+user_name+"; sudo umount ./virts/"+user_name+"; sudo sshfs -o StrictHostKeyChecking=no  -o allow_other,default_permissions root@"+q+":/ ./virts/"+user_name+" -o IdentityFile=/home/lefor/.ssh/id_rsa")
     
-    #virt_running[user_name] = os.popen("ls ./virts/"+user_name+"/").read()
-    asyncio.run(run_client(user_name,password))
     
     b1 = cert_base64.encode("UTF-8")
     d = base64.b64decode(b1)
@@ -142,6 +140,11 @@ def preparing_(user_name,cert_base64,password):
     b1 = data.encode("UTF-8")
     d = base64.b64encode(b1)
     data_base64 = d.decode("UTF-8")
+    
+    #virt_running[user_name] = os.popen("ls ./virts/"+user_name+"/").read()
+    asyncio.run(run_client(user_name,password))
+    
+    
     
     #os.system("ssh -o IdentityFile=/home/lefor/.ssh/id_rsa -o StrictHostKeyChecking=no root@"+q+"  su "+user_name+" -c sunshine &")
     print("ssh -o IdentityFile=/home/lefor/.ssh/id_rsa -o StrictHostKeyChecking=no root@"+q+"  su "+user_name+" -c sunshine &")
